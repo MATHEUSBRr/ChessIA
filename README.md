@@ -52,7 +52,7 @@ Esse projeto pode ser utilizado como ferramenta de estudo para jogadores de xadr
 
 ```bash
 git clone https://github.com/MATHEUSBRr/ChessIA.git
-cd ChessIAProject
+cd ChessIA
 2. Instale as dependências do backend
 Use o terminal e instale as bibliotecas necessárias (recomenda-se Python 3.12 ou superior):
 
