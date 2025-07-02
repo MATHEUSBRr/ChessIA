@@ -1,0 +1,95 @@
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 30px;
+            align-items: start;
+        }
+
+        .chess-board-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .board-wrapper {
+            position: relative;
+            background: #8b4513;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .coordinates {
+            position: absolute;
+            color: #f0d9b5;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .coord-file {
+            bottom: 8px;
+            width: 60px;
+            text-align: center;
+        }
+
+        .coord-rank {
+            left: 8px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+        }
+
+        .chess-board {
+            display: grid;
+            grid-template-columns: repeat(8, 60px);
+            grid-template-rows: repeat(8, 60px);
+            border: 2px solid #8b4513;
+        }
+
+        .square {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+
+        .square.light {
+            background-color: #f0d9b5;
+        }
+
+        .square.dark {
+            background-color: #b58863;
+        }
+
+        .square.selected {
+            background-color: #7b68ee !important;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+        }
+
+        .square.valid-move {
+            background-color: #90ee90 !important;
+        }
+
+        .square.last-move {
+            background-color: #ffff99 !important;
+        }
