@@ -90,3 +90,188 @@
                 }
             }
         }
+        
+        // Converter coordenadas para nome da casa 
+        function getSquareName(row, col) {
+            const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+            const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
+            return files[col] + ranks[row];
+        }
+
+        // Converter nome da casa para coordenadas
+        function getSquareCoords(squareName) {
+            const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+            const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
+            const col = files.indexOf(squareName[0]);
+            const row = ranks.indexOf(squareName[1]);
+            return { row, col };
+        }
+
+        function handleSquareClick(row, col) {
+            if (gameState.vsAI) {
+                if (gameState.isThinking) return;
+                if (gameState.currentPlayer !== gameState.humanColor) return;
+            }
+            if (gameState.pendingPromotion) return;
+
+            const piece = gameState.board[row][col];
+            const sq = getSquareName(row, col);
+
+            if (gameState.selectedSquare) {
+                const ok = gameState.validMoves.some(m => m.to === sq);
+                if (ok) {
+                makeMove(gameState.selectedSquare, sq);
+                } else {
+                clearSelection();
+                if (piece && isPieceOwnedByCurrentPlayer(piece)) {
+                    selectSquare(row, col);
+                }
+                }
+            } else {
+                if (piece && isPieceOwnedByCurrentPlayer(piece)) {
+                selectSquare(row, col);
+                }
+            }
+        }
+
+        // Verificar se a peça pertence ao jogador atual
+        function isPieceOwnedByCurrentPlayer(piece) {
+            const isWhitePiece = piece === piece.toUpperCase();
+            return (gameState.currentPlayer === 'white' && isWhitePiece) ||
+                   (gameState.currentPlayer === 'black' && !isWhitePiece);
+        }
+
+        function selectSquare(row, col) {
+            gameState.selectedSquare = getSquareName(row, col);
+            gameState.validMoves = getValidMoves(row, col);
+            updateBoard();
+        }
+
+        function clearSelection() {
+            gameState.selectedSquare = null;
+            gameState.validMoves = [];
+            updateBoard();
+        }
+
+        // Atualizar visualização do tabuleiro
+        function updateBoard() {
+            const squares = document.querySelectorAll('.square');
+            squares.forEach(square => {
+                square.classList.remove('selected', 'valid-move', 'last-move');
+                
+                if (gameState.selectedSquare && square.dataset.square === gameState.selectedSquare) {
+                    square.classList.add('selected');
+                }
+                
+                if (gameState.validMoves.some(move => move.to === square.dataset.square)) {
+                    square.classList.add('valid-move');
+                }
+
+                if (gameState.lastMove && 
+                    (square.dataset.square === gameState.lastMove.from || 
+                     square.dataset.square === gameState.lastMove.to)) {
+                    square.classList.add('last-move');
+                }
+            });
+        }
+
+        // Obter jogadas válidas para uma peça
+        function getValidMoves(row, col) {
+            const piece = gameState.board[row][col];
+            if (!piece) return [];
+
+            const moves = [];
+            const pieceType = piece.toLowerCase();
+
+            switch (pieceType) {
+                case 'p':
+                    moves.push(...getPawnMoves(row, col, piece));
+                    break;
+                case 'r':
+                    moves.push(...getRookMoves(row, col, piece));
+                    break;
+                case 'n':
+                    moves.push(...getKnightMoves(row, col, piece));
+                    break;
+                case 'b':
+                    moves.push(...getBishopMoves(row, col, piece));
+                    break;
+                case 'q':
+                    moves.push(...getQueenMoves(row, col, piece));
+                    break;
+                case 'k':
+                    moves.push(...getKingMoves(row, col, piece));
+                    break;
+            }
+
+            // Filtrar jogadas que deixam o rei em xeque
+            return moves.filter(move => !isMoveLeavingKingInCheck(move, piece));
+        }
+
+        // #region Movimento e regras do Peão
+        function getPawnMoves(row, col, piece) {
+        const moves = [];
+        const isWhite = piece === piece.toUpperCase();
+        const direction = isWhite ? -1 : 1;
+        const startRow = isWhite ? 6 : 1;
+        const enPassantRow = isWhite ? 3 : 4;
+
+        // Movimento para frente (um passo)
+        if (isValidPosition(row + direction, col) && !gameState.board[row + direction][col]) {
+            moves.push({
+                from: getSquareName(row, col),
+                to: getSquareName(row + direction, col),
+                piece: piece
+            });
+
+            // Movimento duplo inicial (dois passos)
+            if (row === startRow && !gameState.board[row + 2 * direction][col]) {
+                moves.push({
+                    from: getSquareName(row, col),
+                    to: getSquareName(row + 2 * direction, col),
+                    piece: piece,
+                    isDoubleStep: true
+                });
+            }
+        }
+
+        // Capturas diagonais normais
+        for (const dcol of [-1, 1]) {
+            const targetRow = row + direction;
+            const targetCol = col + dcol;
+            if (isValidPosition(targetRow, targetCol)) {
+                const targetPiece = gameState.board[targetRow][targetCol];
+                if (targetPiece && isOpponentPiece(piece, targetPiece)) {
+                    moves.push({
+                        from: getSquareName(row, col),
+                        to: getSquareName(targetRow, targetCol),
+                        piece: piece,
+                        capture: targetPiece
+                    });
+                }
+            }
+        }
+
+        // Captura en passant
+        if (gameState.enPassantTarget) {
+            const epCoords = getSquareCoords(gameState.enPassantTarget);
+            if (row === enPassantRow && Math.abs(col - epCoords.col) === 1 && epCoords.row === row + direction) {
+                const adjacentPiece = gameState.board[row][epCoords.col];
+                if (
+                    adjacentPiece &&
+                    isOpponentPiece(piece, adjacentPiece) &&
+                    (adjacentPiece === 'p' || adjacentPiece === 'P') // opcional: garante que seja peão
+                ) {
+                    moves.push({
+                        from: getSquareName(row, col),
+                        to: gameState.enPassantTarget,
+                        piece: piece,
+                        capture: adjacentPiece,
+                        isEnPassant: true
+                    });
+                }
+            }
+        }
+
+        return moves;
+    }
