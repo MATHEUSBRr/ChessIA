@@ -472,3 +472,808 @@
             const isWhite2 = piece2 === piece2.toUpperCase();
             return isWhite1 !== isWhite2;
         }
+        
+        // Verificar se a jogada deixa o rei em xeque
+        function isMoveLeavingKingInCheck(move, piece) {
+            const fromCoords = getSquareCoords(move.from);
+            const toCoords = getSquareCoords(move.to);
+            
+            const originalPiece = gameState.board[toCoords.row][toCoords.col];
+            gameState.board[fromCoords.row][fromCoords.col] = null;
+            gameState.board[toCoords.row][toCoords.col] = piece;
+
+            // Tratar captura en passant
+            if (move.isEnPassant) {
+                const isWhite = piece === piece.toUpperCase();
+                const capturedRow = isWhite ? toCoords.row + 1 : toCoords.row - 1;
+                gameState.board[capturedRow][toCoords.col] = null;
+            }
+
+            // Verificar se o rei está em xeque
+            const isInCheck = isKingInCheck(piece === piece.toUpperCase() ? 'white' : 'black');
+
+            // Desfazer a jogada
+            gameState.board[fromCoords.row][fromCoords.col] = piece;
+            gameState.board[toCoords.row][toCoords.col] = originalPiece;
+            
+            // Restaurar peça capturada em en passant
+            if (move.isEnPassant) {
+                const capturedRow = piece === 'P' ? toCoords.row + 1 : toCoords.row - 1;
+                gameState.board[capturedRow][toCoords.col] = piece === 'P' ? 'p' : 'P';
+            }
+
+            return isInCheck;
+        }
+
+        // Verificar se o rei está em xeque
+        function isKingInCheck(color) {
+            const kingPiece = color === 'white' ? 'K' : 'k';
+            let kingPos = null;
+
+            // Encontrar o rei
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    if (gameState.board[row][col] === kingPiece) {
+                        kingPos = { row, col };
+                        break;
+                    }
+                }
+            }
+
+            if (!kingPos) return false;
+
+            // Verificar se alguma peça inimiga pode atacar o rei
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const piece = gameState.board[row][col];
+                    if (piece && isOpponentPiece(kingPiece, piece)) {
+                        const moves = getValidMovesWithoutCheckValidation(row, col, piece);
+                        if (moves.some(move => move.to === getSquareName(kingPos.row, kingPos.col))) {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+//#endregion
+
+        function getValidMovesWithoutCheckValidation(row, col, piece) {
+            const pieceType = piece.toLowerCase();
+
+            switch (pieceType) {
+                case 'p': return getPawnMoves(row, col, piece);
+                case 'r': return getRookMoves(row, col, piece);
+                case 'n': return getKnightMoves(row, col, piece);
+                case 'b': return getBishopMoves(row, col, piece);
+                case 'q': return getQueenMoves(row, col, piece);
+                case 'k': return getKingMoves(row, col, piece);
+                default: return [];
+            }
+        }
+
+        // Função para mostrar o modal de promoção
+        function showPromotionModal(to, piece) {
+            gameState.pendingPromotion = { to, piece };
+            
+            const modal = document.createElement('div');
+            modal.className = 'promotion-modal';
+            
+            const options = document.createElement('div');
+            options.className = 'promotion-options';
+            
+            const pieces = ['Q', 'R', 'B', 'N'];
+            const color = piece === 'P' ? 'white' : 'black';
+            
+            pieces.forEach(p => {
+                const option = document.createElement('div');
+                option.className = 'promotion-option';
+                option.innerHTML = pieceSVGs[color === 'white' ? p : p.toLowerCase()];
+                option.addEventListener('click', () => {
+                    const coords = getSquareCoords(to);
+                    gameState.board[coords.row][coords.col] = color === 'white' ? p : p.toLowerCase();
+                    
+                    modal.remove();
+                    gameState.pendingPromotion = null;
+                    
+                    gameState.currentPlayer = gameState.currentPlayer === 'white' ? 'black' : 'white';
+                    if (gameState.currentPlayer === 'white') {
+                        gameState.moveNumber++;
+                    }
+                    
+                    createBoard();
+                    updateGameInfo();
+                    updateMoveList();
+                });
+                options.appendChild(option);
+            });
+            
+            modal.appendChild(options);
+            document.body.appendChild(modal);
+        }
+
+        function makeMove(from, to) {            
+            const fromCoords = getSquareCoords(from);
+            const toCoords = getSquareCoords(to);
+
+            const piece = gameState.board[fromCoords.row][fromCoords.col];
+            const capturedPiece = gameState.board[toCoords.row][toCoords.col];
+            const isWhite = piece === piece.toUpperCase();
+
+            const move = {
+                from: from,
+                to: to,
+                piece: piece,
+                capture: capturedPiece || null,
+                moveNumber: gameState.moveNumber
+            };
+
+            // Detectar Roque
+            if (piece.toLowerCase() === 'k' && Math.abs(toCoords.col - fromCoords.col) === 2) {
+                move.castle = (toCoords.col === 6) ? 'king' : 'queen';
+            }
+
+            // Executar o movimento do rei
+            gameState.board[fromCoords.row][fromCoords.col] = null;
+            gameState.board[toCoords.row][toCoords.col] = piece;
+
+            if (move.castle) {
+                const backRank = isWhite ? 7 : 0;
+
+                if (move.castle === 'king') {
+                    // Torre do lado do rei: h1 → f1 ou h8 → f8
+                    gameState.board[backRank][7] = null;
+                    gameState.board[backRank][5] = isWhite ? 'R' : 'r';
+                    move.rookMove = {
+                        from: getSquareName(backRank, 7),
+                        to: getSquareName(backRank, 5)
+                    };
+                } else if (move.castle === 'queen') {
+                    gameState.board[backRank][0] = null;
+                    gameState.board[backRank][3] = isWhite ? 'R' : 'r';
+                    move.rookMove = {
+                        from: getSquareName(backRank, 0),
+                        to: getSquareName(backRank, 3)
+                    };
+                }
+            }
+
+            // Tratar En Passant
+            if (piece.toLowerCase() === 'p' && gameState.enPassantTarget === to) {
+                const capturedRow = isWhite ? toCoords.row + 1 : toCoords.row - 1;
+                gameState.board[capturedRow][toCoords.col] = null;
+                move.capture = isWhite ? 'p' : 'P';
+                move.isEnPassant = true;
+            }
+
+            // Promoção
+            if (piece.toLowerCase() === 'p') {
+                if ((piece === 'P' && toCoords.row === 0) || (piece === 'p' && toCoords.row === 7)) {
+                    showPromotionModal(to, piece);
+                    move.promotion = true;
+                }
+            }
+
+            // Atualizar direitos de roque
+            if (piece === 'K') {
+                gameState.castlingRights.whiteKingSide = false;
+                gameState.castlingRights.whiteQueenSide = false;
+            } else if (piece === 'k') {
+                gameState.castlingRights.blackKingSide = false;
+                gameState.castlingRights.blackQueenSide = false;
+            } else if (piece === 'R') {
+                if (from === 'h1') gameState.castlingRights.whiteKingSide = false;
+                if (from === 'a1') gameState.castlingRights.whiteQueenSide = false;
+            } else if (piece === 'r') {
+                if (from === 'h8') gameState.castlingRights.blackKingSide = false;
+                if (from === 'a8') gameState.castlingRights.blackQueenSide = false;
+            }
+
+            // Atualizar alvo de en passant
+            gameState.enPassantTarget = null;
+            if (piece.toLowerCase() === 'p' && Math.abs(toCoords.row - fromCoords.row) === 2) {
+                const enPassantRow = fromCoords.row + (isWhite ? -1 : 1);
+                gameState.enPassantTarget = getSquareName(enPassantRow, fromCoords.col);
+                move.isDoubleStep = true;
+            }
+
+            // Registrar jogada
+            gameState.moveHistory.push(move);
+            gameState.lastMove = move;
+
+            // Trocar jogador (caso não seja promoção ainda pendente)
+            if (!move.promotion) {
+                gameState.currentPlayer = gameState.currentPlayer === 'white' ? 'black' : 'white';
+                if (gameState.currentPlayer === 'white') {
+                    gameState.moveNumber++;
+                }
+            }
+
+            if (gameState.vsAI && gameState.currentPlayer !== gameState.humanColor) {
+                setTimeout(playAIMove, 300);
+            }
+
+            updateGameStatus();
+            clearSelection();
+            createBoard();
+            updateGameInfo();
+            updateMoveList();
+        }
+
+        function isSquareAttacked(row, col, byColor) {
+            const squareName = getSquareName(row, col);
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const piece = gameState.board[r][c];
+                    if (piece) {
+                        const isWhitePiece = piece === piece.toUpperCase();
+                        if ((byColor === 'white' && isWhitePiece) || 
+                            (byColor === 'black' && !isWhitePiece)) {
+                            const moves = getValidMovesWithoutCheckValidation(r, c, piece);
+                            if (moves.some(move => move.to === squareName)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Atualizar status do jogo
+        function updateGameStatus() {
+            const inCheck = isKingInCheck(gameState.currentPlayer);
+            const hasValidMoves = hasAnyValidMoves(gameState.currentPlayer);
+
+            if (inCheck && !hasValidMoves) {
+                gameState.gameStatus = gameState.currentPlayer === 'white' ? 'black_wins' : 'white_wins';
+            } else if (!hasValidMoves) {
+                gameState.gameStatus = 'stalemate';
+            } else if (inCheck) {
+                gameState.gameStatus = 'check';
+            } else {
+                gameState.gameStatus = 'playing';
+            }
+        }
+
+        function hasAnyValidMoves(color) {
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const piece = gameState.board[row][col];
+                    if (piece && 
+                        ((color === 'white' && piece === piece.toUpperCase()) ||
+                         (color === 'black' && piece === piece.toLowerCase()))) {
+                        const moves = getValidMoves(row, col);
+                        if (moves.length > 0) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        function updateGameInfo() {
+            const statusElement = document.getElementById('gameStatus');
+            const moveNumberElement = document.getElementById('moveNumber');
+
+            let statusText = '';
+            switch (gameState.gameStatus) {
+                case 'playing':
+                    statusText = gameState.currentPlayer === 'white' ? 'Vez das Brancas' : 'Vez das Pretas';
+                    break;
+                case 'check':
+                    statusText = (gameState.currentPlayer === 'white' ? 'Brancas' : 'Pretas') + ' em Xeque!';
+                    break;
+                case 'white_wins':
+                    statusText = 'Brancas Vencem por Xeque-Mate!';
+                    break;
+                case 'black_wins':
+                    statusText = 'Pretas Vencem por Xeque-Mate!';
+                    break;
+                case 'stalemate':
+                    statusText = 'Empate por Afogamento!';
+                    break;
+            }
+
+            statusElement.textContent = statusText;
+            moveNumberElement.textContent = gameState.moveNumber;
+        }
+
+        function updateMoveList() {
+            const moveListElement = document.getElementById('moveList');
+            
+            if (gameState.moveHistory.length === 0) {
+                moveListElement.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">Nenhuma jogada ainda</div>';
+                return;
+            }
+
+            let html = '';
+            for (let i = 0; i < gameState.moveHistory.length; i += 2) {
+                const whiteMove = gameState.moveHistory[i];
+                const blackMove = gameState.moveHistory[i + 1];
+                
+                const moveNumber = Math.floor(i / 2) + 1;
+                html += `<div class="move-item">`;
+                html += `<strong>${moveNumber}.</strong> `;
+                html += formatMove(whiteMove);
+                
+                if (blackMove) {
+                    html += ` ${formatMove(blackMove)}`;
+                }
+                html += `</div>`;
+            }
+            
+            moveListElement.innerHTML = html;
+            moveListElement.scrollTop = moveListElement.scrollHeight;
+        }
+
+        // Formatar jogada para notação
+        function formatMove(move) {
+            let notation = '';
+            
+            if (move.castle === 'king') {
+                return 'O-O';
+            } else if (move.castle === 'queen') {
+                return 'O-O-O';
+            }
+            
+            if (move.capture) {
+                if (move.piece.toLowerCase() === 'p') {
+                    notation = move.from[0] + 'x' + move.to;
+                } else {
+                    notation = move.piece.toUpperCase() + 'x' + move.to;
+                }
+            } else {
+                if (move.piece.toLowerCase() === 'p') {
+                    notation = move.to;
+                } else {
+                    notation = move.piece.toUpperCase() + move.to;
+                }
+            }
+
+            if (move.promotion) {
+                notation += '=Q';
+            }
+
+            return notation;
+        }
+
+        function generateFEN() {
+            let fen = '';
+            
+            // Posição das peças
+            for (let row = 7; row >= 0; row--) {
+                let emptyCount = 0;
+                for (let col = 0; col < 8; col++) {
+                    const piece = gameState.board[row][col];
+                    if (piece) {
+                        if (emptyCount > 0) {
+                            fen += emptyCount;
+                            emptyCount = 0;
+                        }
+                        fen += piece;
+                    } else {
+                        emptyCount++;
+                    }
+                }
+                if (emptyCount > 0) {
+                    fen += emptyCount;
+                }
+                if (row > 0) fen += '/';
+            }
+
+            // Jogador ativo
+            fen += ' ' + (gameState.currentPlayer === 'white' ? 'w' : 'b');
+            
+            // Direitos de roque
+            let castling = '';
+            if (gameState.castlingRights.whiteKingSide) castling += 'K';
+            if (gameState.castlingRights.whiteQueenSide) castling += 'Q';
+            if (gameState.castlingRights.blackKingSide) castling += 'k';
+            if (gameState.castlingRights.blackQueenSide) castling += 'q';
+            fen += ' ' + (castling || '-');
+            
+            fen += ' ' + (gameState.enPassantTarget || '-');
+            
+            fen += ' 0 ' + gameState.moveNumber;
+
+            return fen;
+        }
+
+        function loadFEN() {
+            const fen = document.getElementById('fenInput').value.trim();
+            if (!fen) return;
+
+            try {
+                const parts = fen.split(' ');
+                const position = parts[0];
+                const activePlayer = parts[1];
+                
+                gameState.board = Array(8).fill(null).map(() => Array(8).fill(null));
+                
+                const rows = position.split('/');
+                for (let row = 0; row < 8; row++) {
+                    let col = 0;
+                    for (const char of rows[7 - row]) {
+                        if (isNaN(char)) {
+                            gameState.board[row][col] = char;
+                            col++;
+                        } else {
+                            col += parseInt(char);
+                        }
+                    }
+                }
+
+                // Definir jogador ativo
+                gameState.currentPlayer = activePlayer === 'w' ? 'white' : 'black';
+                
+                gameState.selectedSquare = null;
+                gameState.validMoves = [];
+                gameState.moveHistory = [];
+                gameState.lastMove = null;
+                gameState.pendingPromotion = null;
+                
+                updateGameStatus();
+                createBoard();
+                updateGameInfo();
+                updateMoveList();
+                
+                alert('Posição carregada com sucesso!');
+            } catch (error) {
+                alert('FEN inválido!');
+            }
+        }
+
+        function resetGame() {
+            gameState.board = JSON.parse(JSON.stringify(initialBoard));
+            gameState.currentPlayer = 'white';
+            gameState.selectedSquare = null;
+            gameState.validMoves = [];
+            gameState.moveHistory = [];
+            gameState.gameStatus = 'playing';
+            gameState.moveNumber = 1;
+            gameState.lastMove = null;
+            gameState.pendingPromotion = null;
+            gameState.castlingRights = {
+                whiteKingSide: true,
+                whiteQueenSide: true,
+                blackKingSide: true,
+                blackQueenSide: true
+            };
+            gameState.enPassantTarget = null;
+            gameState.halfMoveClock = 0;
+
+            createBoard();
+            updateGameInfo();
+            updateMoveList();
+            updateEvaluation(0, '-');
+        }
+
+        function startVsAI() {
+            const sel = document.getElementById('playerColor');
+            gameState.humanColor = sel.value; 
+            gameState.vsAI = true;
+            gameState.isThinking = false; 
+
+            resetGame();
+
+            console.log("Cor humano:", gameState.humanColor, 
+                        "Jogador atual:", gameState.currentPlayer,
+                        "vsAI:", gameState.vsAI);
+
+            if (gameState.humanColor === 'black') {
+                gameState.currentPlayer = 'white';
+                
+                console.log("Chamando IA para jogar...");
+
+                setTimeout(() => {
+                    if (gameState.currentPlayer === 'white' && gameState.vsAI) {
+                        playAIMove();
+                    }
+                }, 100);
+            }
+        }
+
+        function undoMove() {
+            if (gameState.moveHistory.length === 0 || gameState.pendingPromotion) return;
+
+            const lastMove = gameState.moveHistory.pop();
+            const fromCoords = getSquareCoords(lastMove.from);
+            const toCoords = getSquareCoords(lastMove.to);
+
+            gameState.board[fromCoords.row][fromCoords.col] = lastMove.piece;
+            gameState.board[toCoords.row][toCoords.col] = lastMove.capture || null;
+
+            if (lastMove.castle) {
+                const backRank = lastMove.piece === 'K' ? 7 : 0;
+                
+                if (lastMove.castle === 'king') {
+                    gameState.board[backRank][5] = null;
+                    gameState.board[backRank][7] = lastMove.piece === 'K' ? 'R' : 'r';
+                } else {
+                    gameState.board[backRank][3] = null;
+                    gameState.board[backRank][0] = lastMove.piece === 'K' ? 'R' : 'r';
+                }
+            }
+
+            if (lastMove.isEnPassant) {
+                const capturedRow = lastMove.piece === 'P' ? toCoords.row + 1 : toCoords.row - 1;
+                gameState.board[capturedRow][toCoords.col] = lastMove.piece === 'P' ? 'p' : 'P';
+            }
+
+            gameState.currentPlayer = gameState.currentPlayer === 'white' ? 'black' : 'white';
+            
+            if (gameState.currentPlayer === 'black') {
+                gameState.moveNumber--;
+            }
+
+            gameState.lastMove = gameState.moveHistory[gameState.moveHistory.length - 1] || null;
+            gameState.gameStatus = 'playing';
+
+            clearSelection();
+            createBoard();
+            updateGameInfo();
+            updateMoveList();
+        }
+
+            let openings = [];
+
+            async function loadOpenings() {
+            try {
+                const res = await fetch('aberturas.json');
+                openings = await res.json();
+            } catch (e) {
+                console.error('Erro ao carregar aberturas:', e);
+            }
+            }
+
+          function normalizeFen(fen) {
+            return fen.split(' ')[0];
+            }
+
+
+            function findOpening(fen) {
+            const normFen = normalizeFen(fen);
+            for (const opening of openings) {
+                if (normalizeFen(opening.fen) === normFen) {
+                return opening.name;
+                }
+            }
+            return 'Desconhecida';
+            }
+
+            function updateOpening(openingName) {
+            const openingElement = document.getElementById('openingName');
+            if (openingElement) {
+                openingElement.textContent = openingName;
+            }
+        }
+
+
+            // Analisar posição com Stockfish
+            function updateEvaluation(evaluation, bestMove, mateIn) {
+                let evalText = evaluation !== null ? (evaluation > 0 ? `+${evaluation.toFixed(2)}` : evaluation.toFixed(2)) : "Mate";
+                if (mateIn !== null) evalText += ` em ${Math.abs(mateIn)} lances`;
+
+                document.getElementById('evaluation').textContent = evalText;
+                document.getElementById('bestMove').textContent = bestMove || '-';
+
+                // Atualizar barra de avaliação
+                if (evaluation !== null) {
+                    const percentage = Math.min(Math.max((evaluation + 5) / 10 * 100, 0), 100);
+                    document.getElementById('evalBarFill').style.width = percentage + '%';
+                    document.getElementById('evalText').textContent = evalText;
+                } else {
+                    document.getElementById('evalBarFill').style.width = evaluation > 0 ? '100%' : '0%';
+                    document.getElementById('evalText').textContent = evalText;
+                }
+            }
+
+
+            async function analyzePosition() {
+            const button = document.getElementById('analyzeBtn');
+            button.disabled = true;
+            button.innerHTML = '<span class="loading">⟳</span> Analisando...';
+
+            try {
+                const fen = generateFEN();
+
+                const response = await fetch("http://localhost:5000/analyze", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ fen })
+                });
+
+                const data = await response.json();
+
+                if (data.error) throw new Error(data.error);
+
+                updateEvaluation(data.evaluation, data.bestmove, data.mate_in);
+                updateOpening(data.opening);
+                updatePvLines(data.pv_lines);
+            } catch (error) {
+                console.error("Erro na análise:", error);
+                alert("Erro ao conectar ao Stockfish!");
+            } finally {
+                button.disabled = false;
+                button.textContent = "Analisar";
+            }
+        }
+
+            function generateFEN() {
+            const pieceMap = {
+                'P': 'P', 'N': 'N', 'B': 'B', 'R': 'R', 'Q': 'Q', 'K': 'K',
+                'p': 'p', 'n': 'n', 'b': 'b', 'r': 'r', 'q': 'q', 'k': 'k'
+            };
+
+            let fen = '';
+            for (let row = 0; row < 8; row++) {
+                let emptyCount = 0;
+                for (let col = 0; col < 8; col++) {
+                    const piece = gameState.board[row][col];
+                    if (!piece) {
+                        emptyCount++;
+                    } else {
+                        if (emptyCount > 0) {
+                            fen += emptyCount;
+                            emptyCount = 0;
+                        }
+                        fen += pieceMap[piece] || '?'; // Mapeia para FEN ou ? se indefinido
+                    }
+                }
+                if (emptyCount > 0) fen += emptyCount;
+                if (row < 7) fen += '/';
+            }
+
+           const turn = gameState.currentPlayer === 'black' ? 'b' : 'w';
+
+            const castling = '-';
+            const enPassant = '-';
+
+            const halfmoveClock = 0;
+            const fullmoveNumber = gameState.fullmove || 1;
+
+            return `${fen} ${turn} ${castling} ${enPassant} ${halfmoveClock} ${fullmoveNumber}`;
+        }
+
+
+            document.getElementById('analyzeBtn').addEventListener('click', analyzePosition);
+
+            loadOpenings();
+
+            function updatePvLines(lines) {
+            const pvContainer = document.getElementById("pvLines");
+            pvContainer.innerHTML = "";
+
+            if (!lines || lines.length === 0) {
+                pvContainer.innerHTML = `<div style="color: #999; text-align: center; padding: 20px;">Nenhuma análise ainda</div>`;
+                return;
+            }
+
+            lines.forEach((line, index) => {
+                const div = document.createElement("div");
+                div.className = "pv-line-item";
+                div.textContent = `Linha ${index + 1}: ${line}`;
+                pvContainer.appendChild(div);
+            });
+        }
+        
+            function importPGN() {
+                const input = document.getElementById('pgnInput');
+                const file = input.files[0];
+                const resultDiv = document.getElementById('pgnResult');
+                resultDiv.innerHTML = 'Analisando...';
+
+                if (!file) {
+                    resultDiv.innerHTML = '<span style="color: red;">Nenhum arquivo selecionado.</span>';
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const pgn = e.target.result;
+
+                    fetch('http://127.0.0.1:5000/analyze_pgn', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ pgn })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            resultDiv.innerHTML = `<span style="color: red;">Erro: ${data.error}</span>`;
+                            return;
+                        }
+
+                        const {
+                            total_moves,
+                            correct_moves,
+                            mistakes,
+                            blunders,
+                            inaccuracies,
+                            score,
+                            level,
+                            precision,
+                            best_moves,
+                            final_fen,
+                            moves 
+                        } = data;
+
+                        resultDiv.innerHTML = `
+                            <div class="result-item">Total de jogadas: <strong>${total_moves}</strong></div>
+                            <div class="result-item">Acertos: <strong>${correct_moves}</strong></div>
+                            <div class="result-item">Erros: <strong>${mistakes}</strong></div>
+                            <div class="result-item">Erros graves (blunders): <strong>${blunders}</strong></div>
+                            <div class="result-item">Imprecisões: <strong>${inaccuracies}</strong></div>
+                            <div class="result-item">Pontuação final: <strong>${score}</strong></div>
+                            <div class="result-item">Precisão estimada: <strong>${precision}</strong></div>
+                            <div class="result-item">Nível estimado: <strong>${level}</strong></div>
+                        `;
+
+                        if (moves && moves.length > 0) {
+                            moveList = moves;
+                            currentMoveIndex = -1;
+                            renderMoveHistory();
+                        }
+
+                        if (final_fen && typeof updateBoard === "function") {
+                            updateBoard(final_fen);
+                        }
+                    })
+                    .catch(err => {
+                        resultDiv.innerHTML = `<span style="color: red;">Erro ao processar o PGN.</span>`;
+                        console.error(err);
+                    });
+                };
+
+                reader.readAsText(file);
+            }
+        
+            function playAIMove() {
+            if (gameState.isThinking) return;
+                gameState.isThinking = true;
+
+                const fen = generateFEN();
+                fetch("http://127.0.0.1:5000/analyze", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ fen })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.bestmove) return;
+                    const from = data.bestmove.slice(0, 2);
+                    const to   = data.bestmove.slice(2, 4);
+                    makeMove(from, to);
+                })
+                .catch(console.error)
+                .finally(() => {
+                    gameState.isThinking = false;
+                });
+            }
+
+            function canHumanMovePiece(from) {
+                if (!vsAI) return true;
+
+                const fromCoords = getSquareCoords(from);
+                const piece = gameState.board[fromCoords.row][fromCoords.col];
+                if (!piece) return false;
+
+                const isWhite = piece === piece.toUpperCase();
+
+                if (humanColor === 'white' && isWhite) return true;
+                if (humanColor === 'black' && !isWhite) return true;
+
+                return false;
+            }
+
+        function attachEventListeners() {
+            document.getElementById('analyzeBtn').addEventListener('click', analyzePosition);
+            document.getElementById('undoBtn').addEventListener('click', undoMove);
+            document.getElementById('btnStartAI').addEventListener('click', startVsAI);
+        }
+
+        window.addEventListener('load', initGame);
