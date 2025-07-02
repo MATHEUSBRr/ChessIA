@@ -275,3 +275,200 @@
 
         return moves;
     }
+    // #endregion
+
+        //#region Movimento das peças
+
+        // Jogadas da torre
+        function getRookMoves(row, col, piece) {
+            const moves = [];
+            const directions = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+
+            for (const [drow, dcol] of directions) {
+                for (let i = 1; i < 8; i++) {
+                    const newRow = row + i * drow;
+                    const newCol = col + i * dcol;
+
+                    if (!isValidPosition(newRow, newCol)) break;
+
+                    const targetPiece = gameState.board[newRow][newCol];
+                    
+                    if (!targetPiece) {
+                        moves.push({
+                            from: getSquareName(row, col),
+                            to: getSquareName(newRow, newCol),
+                            piece: piece
+                        });
+                    } else {
+                        if (isOpponentPiece(piece, targetPiece)) {
+                            moves.push({
+                                from: getSquareName(row, col),
+                                to: getSquareName(newRow, newCol),
+                                piece: piece,
+                                capture: targetPiece
+                            });
+                        }
+                        break;
+                    }
+                }
+            }
+
+            return moves;
+        }
+
+        // Jogadas do cavalo
+        function getKnightMoves(row, col, piece) {
+            const moves = [];
+            const knightMoves = [
+                [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+                [1, -2], [1, 2], [2, -1], [2, 1]
+            ];
+
+            for (const [drow, dcol] of knightMoves) {
+                const newRow = row + drow;
+                const newCol = col + dcol;
+
+                if (isValidPosition(newRow, newCol)) {
+                    const targetPiece = gameState.board[newRow][newCol];
+                    
+                    if (!targetPiece || isOpponentPiece(piece, targetPiece)) {
+                        moves.push({
+                            from: getSquareName(row, col),
+                            to: getSquareName(newRow, newCol),
+                            piece: piece,
+                            capture: targetPiece
+                        });
+                    }
+                }
+            }
+
+            return moves;
+        }
+
+        // Jogadas do bispo
+        function getBishopMoves(row, col, piece) {
+            const moves = [];
+            const directions = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+
+            for (const [drow, dcol] of directions) {
+                for (let i = 1; i < 8; i++) {
+                    const newRow = row + i * drow;
+                    const newCol = col + i * dcol;
+
+                    if (!isValidPosition(newRow, newCol)) break;
+
+                    const targetPiece = gameState.board[newRow][newCol];
+                    
+                    if (!targetPiece) {
+                        moves.push({
+                            from: getSquareName(row, col),
+                            to: getSquareName(newRow, newCol),
+                            piece: piece
+                        });
+                    } else {
+                        if (isOpponentPiece(piece, targetPiece)) {
+                            moves.push({
+                                from: getSquareName(row, col),
+                                to: getSquareName(newRow, newCol),
+                                piece: piece,
+                                capture: targetPiece
+                            });
+                        }
+                        break;
+                    }
+                }
+            }
+
+            return moves;
+        }
+
+        // Jogadas da rainha
+        function getQueenMoves(row, col, piece) {
+            return [...getRookMoves(row, col, piece), ...getBishopMoves(row, col, piece)];
+        }
+// #endregion
+
+        // #region Movimento do rei e regras do roque
+        // Jogadas do rei 
+        function getKingMoves(row, col, piece) {
+            const moves = [];
+            const directions = [
+                [-1, -1], [-1, 0], [-1, 1],
+                [0, -1],           [0, 1],
+                [1, -1],  [1, 0],  [1, 1]
+            ];
+
+            // Movimentos normais do rei (um quadrado em qualquer direção)
+            for (const [drow, dcol] of directions) {
+                const newRow = row + drow;
+                const newCol = col + dcol;
+
+                if (isValidPosition(newRow, newCol)) {
+                    const targetPiece = gameState.board[newRow][newCol];
+
+                    if (!targetPiece || isOpponentPiece(piece, targetPiece)) {
+                        moves.push({
+                            from: getSquareName(row, col),
+                            to: getSquareName(newRow, newCol),
+                            piece: piece,
+                            capture: targetPiece || null
+                        });
+                    }
+                }
+            }
+
+            const isWhite = piece === 'K'; //'K' = Rei branco 'k' = Rei preto
+            const backRank = isWhite ? 7 : 0;
+            const enemyColor = isWhite ? 'black' : 'white';
+
+            if (row === backRank && col === 4) { 
+                // Roque curto (lado do rei)
+                if (gameState.castlingRights[isWhite ? 'whiteKingSide' : 'blackKingSide']) {
+                    if (!gameState.board[backRank][5] && !gameState.board[backRank][6]) {
+                        if (!isSquareAttacked(backRank, 4, enemyColor) &&
+                            !isSquareAttacked(backRank, 5, enemyColor) &&
+                            !isSquareAttacked(backRank, 6, enemyColor)) {
+                            
+                            moves.push({
+                                from: getSquareName(row, col),
+                                to: getSquareName(backRank, 6),
+                                piece: piece,
+                                castle: 'king'
+                            });
+                        }
+                    }
+                }
+
+                // Roque longo (lado da rainha)
+                if (gameState.castlingRights[isWhite ? 'whiteQueenSide' : 'blackQueenSide']) {
+                    if (!gameState.board[backRank][1] && 
+                        !gameState.board[backRank][2] &&
+                        !gameState.board[backRank][3]) {
+                        
+                        if (!isSquareAttacked(backRank, 2, enemyColor) &&
+                            !isSquareAttacked(backRank, 3, enemyColor) &&
+                            !isSquareAttacked(backRank, 4, enemyColor)) {
+
+                            moves.push({
+                                from: getSquareName(row, col),
+                                to: getSquareName(backRank, 2),
+                                piece: piece,
+                                castle: 'queen'
+                            });
+                        }
+                    }
+                }
+            }
+
+            return moves;
+        }
+
+        function isValidPosition(row, col) {
+            return row >= 0 && row < 8 && col >= 0 && col < 8;
+        }
+
+        function isOpponentPiece(piece1, piece2) {
+            const isWhite1 = piece1 === piece1.toUpperCase();
+            const isWhite2 = piece2 === piece2.toUpperCase();
+            return isWhite1 !== isWhite2;
+        }
