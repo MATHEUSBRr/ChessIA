@@ -80,3 +80,71 @@ def analyze():
     except Exception as e:
         return jsonify({"error": f"Erro ao analisar: {str(e)}"}), 500
 
+@app.route('/analyze_pgn', methods=['POST'])
+def analyze_pgn():
+    data = request.get_json()
+    pgn_text = data.get('pgn', '')
+
+    if not pgn_text:
+        return jsonify({'error': 'PGN não fornecido'}), 400
+
+    try:
+        pgn_io = chess.pgn.read_game(io.StringIO(pgn_text))
+        board = pgn_io.board()
+        move_count = 0
+        correct_moves = 0
+        mistakes = 0
+        blunders = 0
+        inaccuracies = 0
+        best_moves_list = []
+
+        for move in pgn_io.mainline_moves():
+            move_count += 1
+
+            analysis = engine.analyse(board, chess.engine.Limit(depth=15))
+            best_move = analysis["pv"][0]
+            best_moves_list.append(best_move.uci())
+
+            # Verifica se foi a melhor jogada
+            if move == best_move:
+                correct_moves += 1
+            else:
+                # Avaliação após jogada para medir o impacto
+                board.push(move)
+                new_analysis = engine.analyse(board, chess.engine.Limit(depth=15))
+                score_before = analysis["score"].white().score(mate_score=10000)
+                score_after = new_analysis["score"].white().score(mate_score=10000)
+                diff = (score_after - score_before) if score_before and score_after else 0
+
+                # Classificação do erro
+                if diff <= -300:
+                    blunders += 1
+                elif diff <= -100:
+                    mistakes += 1
+                elif diff <= -50:
+                    inaccuracies += 1
+
+                continue 
+            board.push(move)
+
+        score = round((correct_moves / move_count) * 200, 1)
+        final_fen = board.fen()
+
+        return jsonify({
+            "total_moves": move_count,
+            "correct_moves": correct_moves,
+            "mistakes": mistakes,
+            "blunders": blunders,
+            "inaccuracies": inaccuracies,
+            "score": score,
+            "level": "Avançado" if score >= 90 else "Intermediário" if score >= 60 else "Iniciante",
+            "precision": f"{score}%",
+            "best_moves": best_moves_list,
+            "final_fen": final_fen
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+if __name__ == "__main__":
+    app.run(debug=True)
