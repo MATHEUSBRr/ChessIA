@@ -49,10 +49,62 @@
         </div>
     </div>
 
+    <!-- PAINEL DIREITO -->
+    <div class="analysis-panel">
+        <div class="panel-section">
+            <h3>Status do Jogo</h3>
+            <div class="game-info">
+                <div class="status" id="gameStatus">Vez das Brancas</div>
+                <div>Jogada: <span id="moveNumber">1</span></div>
+            </div>
+        </div>
 
+        <div class="panel-section">
+            <h3>Opções de Jogo</h3>
+            <div class="controls" style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+                <label for="playerColor">Cor:</label>
+                <select id="playerColor">
+                    <option value="white" selected>Brancas</option>
+                    <option value="black">Pretas</option>
+                </select>
+
+                <button onclick="startVsAI()" id="btnStartAI">Jogar contra IA</button>
+                <button onclick="undoMove()" id="undoBtn">Desfazer a jogada</button>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <h3>Avaliação</h3>
+            <div class="evaluation">
+                <div>Avaliação: <span id="evaluation">+0.00</span></div>
+                <div class="eval-bar">
+                    <div class="eval-bar-fill" id="evalBarFill" style="width: 50%;"></div>
+                    <div class="eval-text" id="evalText">+0.00</div>
+                </div>
+                <div>Melhor jogada: <span id="bestMove">-</span></div>
+                <div>Abertura: <span id="openingName">-</span></div>
+                <button id="analyzeBtn" onclick="analyzePosition()">Analisar</button>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <h3>Análise por PGN</h3>
+            <input type="file" id="pgnInput" accept=".pgn">
+            <button onclick="importPGN()">Importar PGN</button>
+            <div class="pgn-result" id="pgnResult"></div>
+        </div>
+
+        <div class="panel-section">
+            <h3>Histórico de Jogadas</h3>
+            <div class="move-list" id="moveList">
+                <div style="color: #999; text-align: center; padding: 20px;">
+                    Nenhuma jogada ainda
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script src="script.js"></script>
 </body>
-
 </html>
